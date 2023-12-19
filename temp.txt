@@ -1,0 +1,116 @@
+// index.blade 
+
+@extends('common-layout')
+@section('space-work')
+<div class="container mt-4">
+    <h2>Albums</h2>
+
+    <a href="{{route('album.crateAlbums')}}" class="btn btn-primary mb-2">Create Album</a>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Image</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+         <tbody>
+             @foreach ($albums as $album)
+                <tr>
+                    <td>{{ $album->name }}</td>
+                    <td>{{ $album->description }}</td>
+                    <td>
+                        <img src="{{ asset($album->cover_image) }}" alt="{{ $album->name }}" class="img-thumbnail" style="max-width: 100px;">
+                    </td>
+                    <td>
+                       <a href="{{route('album.show', $album->id)}}" class="btn btn-primary"> View</a>
+                      
+                       <form action="{{ route('album.destroy', $album->id) }}" method="POST" enctype="multipart/form-data">
+                        @csrf
+                        @method('DELETE')
+                        <button class="btn btn-danger">Delete</button>
+                    </form>
+                    
+                    </td>
+                </tr>
+            @endforeach
+        </tbody> 
+    </table>
+</div>
+
+@endsection
+
+// Admin Contrlloer 
+<?php
+
+namespace App\Http\Controllers\Backend;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\Controller;
+
+class AlbumController extends Controller
+{
+    public function index(){
+       $albums =  DB::table('albums')->get();
+        return view('album.index', compact('albums'));
+    }
+
+
+    public function createAlbums(){
+        return view('album.create');
+    }
+    
+    public function store(Request $request){
+        $this->validate($request, [
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:255',
+            'cover_image' => 'required|image|mimes:png,jpg,jpeg,gif|max:2048',
+        ]);
+    
+        // Image Processing
+
+        if($request ->hasFile('cover_image')){
+            $image = $request->file('cover_image');
+            $fileNameToStore = 'cover_image_'.md5(uniqid()).time().'.'.
+            $image ->getClientOriginalExtension();
+            $image->move(public_path('assets/gallery/albums'), $fileNameToStore);
+        }
+    
+        // Save Data to Album Table
+        
+        DB::table('albums')->insert([
+            'name' => $request->name,
+            'description' => $request->description,
+            'cover_image' => 'assets/gallery/albums/'.$fileNameToStore,
+        ]);
+
+        return redirect()->back()->with('success', 'Album Created Successfully');
+    }
+    
+    //  show method
+
+    public function show($id){
+
+        $album = DB::table('albums')->where('id', $id)->first();
+        return view('album.show', compact('album'));
+        
+    }
+
+
+    // destroy 
+
+    public function destroy($id){
+        $album = DB::table('albums')->where('id', $id)->first();
+        $removedFile = unlink(public_path($album->cover_image));
+        if($removedFile){
+            DB::table('albums')->where('id', $id)->delete();
+            return redirect()->back()->with('success', 'Album Deleted Successfully');
+        }
+
+        return redirect()->back();
+    }
+
+
+}
